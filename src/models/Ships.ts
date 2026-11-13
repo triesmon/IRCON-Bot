@@ -162,13 +162,13 @@ export class Ships extends Model {
 
 export async function deleteShips(
   shipName: string,
-  owner: string,
+  discordUserId: Snowflake,
   guildId: Snowflake,
   deleteAll: boolean
 ) {
   const searchedShip = findShip(shipName);
   const removed = new Set<FleetViewShip>();
-  const matches = await ShipDao.findShipsByOwner(owner, guildId);
+  const matches = await ShipDao.findShipsByOwnerId(discordUserId, guildId);
   matches.find((m: Ships) => {
     const dbShip = findShip(m.shipname);
 
