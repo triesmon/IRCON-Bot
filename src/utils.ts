@@ -16,6 +16,7 @@ import { User } from "./models/User";
 import { client, memberGuildsCache } from "./handlers/DiscordHandlers";
 
 import { SetDefaultGuild } from "./commands";
+import { MAX_SHIPS_PER_GUILD } from "./shipLimits";
 
 let allowedShips: FleetViewShip[] = [];
 
@@ -404,7 +405,7 @@ export async function addShipCheck(
   guildId: Snowflake
 ): Promise<boolean> {
   let orgCount = await ShipDao.count(guildId);
-  if (orgCount > 3_000) {
+  if (orgCount >= MAX_SHIPS_PER_GUILD) {
     replyTo(
       message,
       "Org limit reached. Contact developers to increase limit."
@@ -415,20 +416,25 @@ export async function addShipCheck(
   }
 }
 
-export function bulkFindShips(
-  ships: string[],
-): FleetViewShip[] {
+export function bulkFindShips(ships: string[]): FleetViewShip[] {
+  const foundByName = new Map<string, FleetViewShip | undefined>();
+
   return ships
-    .map((ship) => findShip(ship))
-    .filter((ship) => ship) as FleetViewShip[];
+    .map((ship) => {
+      if (!foundByName.has(ship)) {
+        foundByName.set(ship, findShip(ship));
+      }
+      return foundByName.get(ship);
+    })
+    .filter((ship): ship is FleetViewShip => ship != null);
 }
 
-export function bulkCreateShips(
+export async function bulkCreateShips(
   foundShips: FleetViewShip[],
   message: Communication,
   guildId: Snowflake
-) {
-  ShipDao.bulkCreate(
+): Promise<boolean> {
+  return ShipDao.bulkCreate(
     foundShips.map((ship) => {
       return {
         shipname: ship.name,
@@ -437,24 +443,22 @@ export function bulkCreateShips(
       };
     })
   );
-
 }
 
-
-export function addShip(
+export async function addShip(
   shipName: string,
   message: Communication,
   guildId: Snowflake
-): FleetViewShip | undefined {
+): Promise<FleetViewShip | null | undefined> {
   const foundShip = findShip(shipName);
 
   if (foundShip) {
-    ShipDao.create({
+    const created = await ShipDao.create({
       shipname: foundShip.name,
       discordUserId: getUserId(message),
       guildId: guildId,
     });
-    return foundShip;
+    return created ? foundShip : null;
   } else {
     return;
   }
